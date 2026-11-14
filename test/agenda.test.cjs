@@ -194,6 +194,18 @@ async function setup(mockOpts, configPatch, clock) {
     eq(r.items.map((x) => x.it.description), ['Out', 'A', 'Ex', 'C', 'Unknown'], 'sorted: out first, then days (alerts before ties), unknown last; delivered hidden');
     const r2 = H.readDeliveries({ state: '5', attributes: { deliveries: list } }, { ...cfg, show_delivered: true }, now);
     eq(r2.items[r2.items.length - 1].it.description, 'Done', 'show_delivered puts delivered last');
+    {
+      const nowD = new w0.Date(2026, 10, 14, 15, 0);
+      const pl = (v) => { const x = H.parseLoose(v, nowD.getTime()); return x ? [x.getFullYear(), x.getMonth() + 1, x.getDate(), x.getHours(), x.getMinutes()] : null; };
+      eq(pl('Saturday, November 14 12:04 PM'), [2026, 11, 14, 12, 4], 'weekday + no year');
+      eq(pl('November 14, 2026 1:52 AM'), [2026, 11, 14, 1, 52], 'month name with year');
+      eq(pl('2026-11-13 18:21'), [2026, 11, 13, 18, 21], 'ISO-ish');
+      eq(pl('Tuesday, December 30 9:00 AM'), [2025, 12, 30, 9, 0], 'no year in the future → last year');
+      eq(pl('--//--'), null, 'placeholder');
+      const dv = (date) => H.deliveryStatus({ status_code: 0, delivered: true, events: [{ event: 'Delivered', date }] }, nowD.getTime());
+      eq([dv('Saturday, November 14 12:04 PM').days, dv('Friday, November 13 5:00 PM').days], [0, -1], 'delivered today / yesterday');
+      ok(dv('Saturday, November 14 12:04 PM').rank < dv('Friday, November 13 5:00 PM').rank, 'newest delivery first');
+    }
     eq(H.readDeliveries({ state: 'unavailable', attributes: {} }, cfg, now).items, [], 'missing attribute → empty');
     eq(H.readDeliveries({ state: '1', attributes: { pk: { a: { description: 'Obj', status_code: 4 } } } }, { ...cfg, attribute: 'pk' }, now).items.length, 1, 'object map accepted');
   }
@@ -386,6 +398,21 @@ async function setup(mockOpts, configPatch, clock) {
     ok(!$$('.dnone').length && $$('.day.today .ev').length === 1, 'today with an event: normal row');
     $$ = await run(evs, d(0, 15, 0).getTime(), { always_today: false });
     ok(!$$('.day.today').length, 'always_today: false keeps the old behaviour');
+  }
+
+  console.log('card: delivered stays, green check');
+  {
+    const base = (await setup()).w.GHAgendaMock.demoConfig().deliveries;
+    const dcfg = { ...(typeof base === 'string' ? { entity: base } : base), default_view: 'today', carrier_icons: 'parcelapp', show_delivered: true, max: 8 };
+    const { $, $$ } = await setup({}, { deliveries: dcfg });
+    const done = $$('.pk.t-done');
+    ok(done.length >= 1, 'delivered rows shown');
+    ok(done.every((r) => r.querySelector('.chip.done') && !r.querySelector('.chip.logo')), 'green check instead of the logo');
+    $('.vsw .vs[data-v="all"]').click();
+    await sleep(20);
+    ok($$('.pk.t-done').length >= 1, 'delivered rows in All too, last');
+    const rows = $$('.pk');
+    ok(rows[rows.length - 1].classList.contains('t-done') || rows.slice(-2).some((r) => r.classList.contains('t-done')), 'delivered sorted after the rest');
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

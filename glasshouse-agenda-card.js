@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
   const TAG = 'glasshouse-agenda-card';
 
   const REFRESH_MS = 15 * 60000;
@@ -200,7 +200,10 @@
       background: linear-gradient(90deg, color-mix(in srgb, var(--gh-alert) 11%, transparent), transparent 70%), var(--gh-surface-2);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gh-alert) 22%, transparent); }
     .pk.t-warn { --tone: var(--gh-warn); }
-    .pk.t-done { --tone: var(--gh-ok); opacity: .62; }
+    .pk.t-done { --tone: var(--gh-ok); }
+    .pk.t-done .tx .t { color: var(--gh-text-2); }
+    .pk .chip.done { border-radius: 50%; color: #fff; background: var(--gh-ok); box-shadow: 0 0 16px -4px var(--gh-ok); }
+    .pk .chip.done ha-icon { --mdc-icon-size: 20px; }
     .pk-main { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 56px; padding: 8px 10px 8px 9px; }
     .pk .chip { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center;
       color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
@@ -419,6 +422,24 @@
     }
     const t = Date.parse(s);
     return Number.isFinite(t) ? { date: new Date(t), hasTime: true } : null;
+  }
+
+  /** A carrier event date in whatever format it comes: ISO-ish, "Saturday, November 14 12:04 PM" (no year), "November 14, 2026 1:52 AM". */
+  function parseLoose(v, nowMs) {
+    if (v === null || v === undefined) return null;
+    // with a year, the normal parser is right; without one, Date.parse would guess 2001
+    if (/\b\d{4}\b/.test(String(v))) { const p = parseExpected(v); if (p) return p.date; }
+    let str = String(v).trim().replace(/^[A-Za-z]+day,\s*/, '');
+    if (!str || /^-/.test(str)) return null;
+    let t = Date.parse(str);
+    if (!/\b\d{4}\b/.test(str)) {
+      // no year: assume this year (or last year when that would put it in the future)
+      const y = new Date(nowMs).getFullYear();
+      const withYear = str.replace(/^([A-Za-z]+\.?\s+\d{1,2})(,)?/, `$1, ${y}`);
+      t = Date.parse(withYear);
+      if (Number.isFinite(t) && t > nowMs + 864e5) t = Date.parse(withYear.replace(String(y), String(y - 1)));
+    }
+    return Number.isFinite(t) ? new Date(t) : null;
   }
 
   /* ------------------------------------------------------------- locale */
@@ -695,12 +716,17 @@
       else if (days !== null && days < 0) { label = 'Late'; tone = 'warn'; }
       else if (base.kind === 'transit') label = 'In transit';
     }
-    let rank;
+    let rank, deliveredAt = null, dDays = days;
     if (base.kind === 'out') rank = -1000;
-    else if (base.kind === 'delivered') rank = 1e6;
-    else rank = days === null ? 5000 : days;
+    else if (base.kind === 'delivered') {
+      const ev0 = Array.isArray(it.events) && it.events[0] && typeof it.events[0] === 'object' ? it.events[0] : null;
+      deliveredAt = ev0 ? parseLoose(ev0.date, nowMs) : null;
+      if (deliveredAt) dDays = dayDiff(deliveredAt, nowMs);
+      // newest delivery first among the delivered
+      rank = 1e6 + (deliveredAt ? Math.max(0, (nowMs - deliveredAt.getTime()) / 6e4) : 1e5);
+    } else rank = days === null ? 5000 : days;
     return {
-      kind: base.kind, word: base.word, label, tone, step: base.step, icon: base.icon, days, rank,
+      kind: base.kind, word: base.word, label, tone, step: base.step, icon: base.icon, days: dDays, rank, deliveredAt,
       expected: ex && ex.hasTime && days === 0 ? ex.date : null,
     };
   }
@@ -1071,7 +1097,7 @@
         for (const b of E.vsw.children) {
           const on = b.dataset.v === view;
           b.setAttribute('aria-pressed', String(on));
-          b.lastChild.textContent = String(b.dataset.v === 'today' ? todays.filter((x) => x.s.kind !== 'delivered').length : active.length);
+          b.lastChild.textContent = String(b.dataset.v === 'today' ? todays.length : items.length);
         }
       }
       this._delivN = items.length;
@@ -1130,6 +1156,11 @@
       const desc = String(it.description || it.name || '').trim() || (carrierLabel(it.carrier_code) ? `${carrierLabel(it.carrier_code)} package` : 'Package');
       const carrier = carrierLabel(it.carrier_code);
       let label = s.label;
+      if (s.kind === 'delivered' && s.deliveredAt) {
+        const t = fmtTime(s.deliveredAt, loc);
+        label = s.days === 0 ? (loc && loc.h12 === false ? t : t.replace(/:00(?=\s|$)/, ''))
+          : s.days === -1 ? 'Yesterday' : s.days > -7 ? weekdayShort(s.deliveredAt, loc) : `${monthDay(s.deliveredAt, loc)}`;
+      }
       if (s.expected && s.kind !== 'out') {
         const t = fmtTime(s.expected, loc);
         label = `Today · ${loc && loc.h12 === false ? t : t.replace(/:00(?=\s|$)/, '')}`;
@@ -1167,7 +1198,8 @@
     }
 
     _chip(it, s) {
-      const url = carrierLogo(it.carrier_code, this._config.deliveries.logos, s.kind === 'delivered');
+      if (s.kind === 'delivered') return h('span', { class: 'chip done' }, [icon('mdi:check-bold')]);
+      const url = carrierLogo(it.carrier_code, this._config.deliveries.logos, false);
       if (!url) return h('span', { class: 'chip' }, [icon(s.icon)]);
       const img = h('img', { src: url, alt: '', loading: 'lazy', decoding: 'async' });
       // a missing logo falls back to the status icon
@@ -1392,6 +1424,7 @@
   }
 
   GlasshouseAgendaCard.helpers = {
+    parseLoose,
     VERSION, normConfig, colorOf, startOfDay, addDays, dayKey, dayDiff, parseLocalDate, parseExpected, normEvent, buildAgenda,
     carrierLabel, deliveryStatus, deliveryDays, readDeliveries, last4, fmtRange, fmtTime, localeOf, fmtIn,
   };
