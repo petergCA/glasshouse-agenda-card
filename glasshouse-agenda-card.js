@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.0';
+  const VERSION = '1.4.1';
   const TAG = 'glasshouse-agenda-card';
 
   const REFRESH_MS = 15 * 60000;
@@ -202,8 +202,12 @@
     .pk.t-warn { --tone: var(--gh-warn); }
     .pk.t-done { --tone: var(--gh-ok); }
     .pk.t-done .tx .t { color: var(--gh-text-2); }
-    .pk .chip.done { border-radius: 50%; color: #fff; background: var(--gh-ok); box-shadow: 0 0 16px -4px var(--gh-ok); }
-    .pk .chip.done ha-icon { --mdc-icon-size: 20px; }
+    /* delivered: a glass chip tinted green (like the lit icons elsewhere), not a solid disc */
+    .pk .chip.done { border-radius: 50%; color: var(--gh-ok);
+      background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--gh-ok) 26%, transparent), color-mix(in srgb, var(--gh-ok) 10%, transparent) 70%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gh-ok) 50%, transparent), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 18px -6px var(--gh-ok);
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+    .pk .chip.done ha-icon { --mdc-icon-size: 20px; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gh-ok) 60%, transparent)); }
     .pk-main { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 56px; padding: 8px 10px 8px 9px; }
     .pk .chip { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center;
       color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
