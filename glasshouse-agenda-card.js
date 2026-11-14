@@ -1,12 +1,12 @@
 /*!
- * Glasshouse Agenda Card v1.0.0
+ * Glasshouse Agenda Card v1.1.0
  * What's coming: today's deliveries and the week ahead from your calendars, in one card.
  * Part of the Glasshouse card suite. MIT License (c) 2026 Peter Gray.
  */
 (() => {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const TAG = 'glasshouse-agenda-card';
 
   const REFRESH_MS = 15 * 60000;
@@ -527,6 +527,7 @@
       title: config.title === false ? false : config.title === undefined || config.title === null ? 'Coming up' : String(config.title),
       days: posInt(config.days, 7, 1, 31),
       max_events: posInt(config.max_events, 14, 1, 200),
+      event_days: config.event_days === undefined ? 0 : posInt(config.event_days, 5, 1, 31),
       calendars, deliveries, counts, layout,
     };
   }
@@ -566,7 +567,7 @@
    * Group events into visible days. Ended timed events are dropped; all-day events cover every day they span;
    * a timed event that began before today and is still running shows on today. max_events caps the total.
    */
-  function buildAgenda(events, nowMs, days, maxEvents) {
+  function buildAgenda(events, nowMs, days, maxEvents, eventDays = 0) {
     const today = startOfDay(nowMs);
     const out = [];
     const seen = new Set();
@@ -595,6 +596,7 @@
       allDay.sort((a, b) => a.ev.start - b.ev.start || a.ev.cal.idx - b.ev.cal.idx || a.ev.summary.localeCompare(b.ev.summary));
       timed.sort((a, b) => a.ev.start - b.ev.start || a.ev.end - b.ev.end || a.ev.cal.idx - b.ev.cal.idx);
       out.push({ date: d0, key: dayKey(d0), offset: i, allDay, timed });
+      if (eventDays && out.length >= eventDays) break; // event_days: the first N days that have something on
     }
     let budget = maxEvents, hidden = 0, hiddenUntil = null, total = 0;
     const shown = [];
@@ -1121,9 +1123,10 @@
         all.push(...entry.events);
         if (!entry.ok) failed.push(cal);
       }
-      const agenda = buildAgenda(all, now, c.days, c.max_events);
+      const agenda = buildAgenda(all, now, c.days, c.max_events, c.event_days);
       const today0 = startOfDay(now);
-      E.range.textContent = c.days === 1 ? 'Today' : `${monthDay(today0, loc)} – ${monthDay(addDays(today0, c.days - 1), loc)}`;
+      const lastDay = c.event_days && agenda.days.length ? agenda.days[agenda.days.length - 1].date : addDays(today0, c.days - 1);
+      E.range.textContent = c.days === 1 ? 'Today' : `${monthDay(today0, loc)} – ${monthDay(lastDay, loc)}`;
 
       // stats for the header
       const tday = agenda.days.find((d) => d.offset === 0);

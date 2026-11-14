@@ -51,6 +51,7 @@ For the full look, pair it with the **Glasshouse** theme.
 | `type` | string | **required** | `custom:glasshouse-agenda-card` |
 | `title` | string or `false` | `Coming up` | Header title. `false` hides it (the counts strip stays). |
 | `days` | number | `7` | How many days of calendar, starting today (1–31). |
+| `event_days` | number | – | Show the first N days **that have events** within the `days` look-ahead (e.g. `days: 14, event_days: 5` = the next five days with something on). |
 | `max_events` | number | `14` | Cap across all days. Capped days show "+N more"; later days a single "+N more events through …" line. |
 | `calendars` | list | – | Calendar entities (below). A plain entity id also works. |
 | `deliveries` | object or string | – | The delivery sensor (below). |
