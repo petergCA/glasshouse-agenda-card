@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.2.1';
+  const VERSION = '1.3.0';
   const TAG = 'glasshouse-agenda-card';
 
   const REFRESH_MS = 15 * 60000;
@@ -307,6 +307,10 @@
       transition: width 600ms var(--gh-spring); }
     .prog i::after { content: ""; position: absolute; right: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%;
       background: #fff; box-shadow: 0 0 8px 1px var(--c); }
+    .dnone { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 10px; border-radius: 10px;
+      font-size: 13px; font-weight: 600; color: var(--gh-text-2); background: rgba(255,255,255,0.03); }
+    .dnone ha-icon { --mdc-icon-size: 17px; color: var(--gh-text-3); }
+    .dnone.done ha-icon { color: var(--gh-ok); }
     .dmore { font-size: 11.5px; font-weight: 600; color: var(--gh-text-3); padding: 2px 0 0 81px; }
     @container gh-cal (min-width: 470px) { .dmore { padding-left: 125px; } }
     .overflow { display: flex; align-items: center; gap: 8px; padding: 8px 2px 0 50px; font-size: 12px; font-weight: 600; color: var(--gh-text-3); }
@@ -550,6 +554,7 @@
       days: posInt(config.days, 7, 1, 31),
       max_events: posInt(config.max_events, 14, 1, 200),
       event_days: config.event_days === undefined ? 0 : posInt(config.event_days, 5, 1, 31),
+      always_today: config.always_today !== false,
       calendars, deliveries, counts, layout,
     };
   }
@@ -1210,6 +1215,12 @@
       }
       const agenda = buildAgenda(all, now, c.days, c.max_events, c.event_days);
       const today0 = startOfDay(now);
+      const t0 = today0.getTime(), nowMs = now;
+      const endedToday = all.some((e) => !e.allDay && e.start.getTime() >= t0 && e.start.getTime() < addDays(today0, 1).getTime() && e.end.getTime() <= nowMs);
+      // Today always gets a row (when later days have events), saying it's clear or all done
+      if (c.always_today && agenda.days.length && agenda.days[0].offset !== 0) {
+        agenda.days.unshift({ date: today0, key: dayKey(today0), offset: 0, allDay: [], timed: [], more: 0, empty: endedToday ? 'done' : 'none' });
+      }
       const lastDay = c.event_days && agenda.days.length ? agenda.days[agenda.days.length - 1].date : addDays(today0, c.days - 1);
       E.range.textContent = c.days === 1 ? 'Today' : `${monthDay(today0, loc)} – ${monthDay(lastDay, loc)}`;
 
@@ -1219,8 +1230,6 @@
       const allToday = buildAgenda(all, now, 1, 1000).days[0];
       const upcoming = allToday ? allToday.timed.filter((x) => x.ev.start.getTime() > now) : [];
       if (upcoming[0]) nextTxt = fmtTime(upcoming[0].ev.start, loc);
-      const t0 = today0.getTime(), nowMs = now;
-      const endedToday = all.some((e) => !e.allDay && e.start.getTime() >= t0 && e.end.getTime() <= nowMs);
       this._calStats = { today: allToday ? allToday.allDay.length + allToday.timed.length : 0, next: nextTxt,
         loaded: loaded === c.calendars.length, endedToday };
       const wasEmpty = this._calEmpty;
@@ -1229,7 +1238,7 @@
       this._lastEvents = agenda.days.reduce((n, d) => n + d.allDay.length + d.timed.length, 0);
 
       const minute = Math.floor(now / 60000);
-      const sig = JSON.stringify([agenda.days.map((d) => [d.key, d.more, d.allDay.map((x) => [x.ev.key, x.part]), d.timed.map((x) => x.ev.key)]),
+      const sig = JSON.stringify([agenda.days.map((d) => [d.key, d.more, d.empty || 0, d.allDay.map((x) => [x.ev.key, x.part]), d.timed.map((x) => x.ev.key)]),
         agenda.hidden, failed.map((f) => f.entity), loaded, minute, loc]);
       if (sig !== this._calSig) {
         this._calSig = sig;
@@ -1297,6 +1306,12 @@
           p.addEventListener('click', () => this._moreInfo(ev.cal.entity));
           return p;
         })));
+      }
+      if (d.empty) {
+        devs.append(h('div', { class: `dnone ${d.empty}` }, [
+          icon(d.empty === 'done' ? 'mdi:check-circle-outline' : 'mdi:calendar-blank-outline'),
+          h('span', { text: d.empty === 'done' ? 'All done for today' : 'Nothing on today' }),
+        ]));
       }
       for (const x of d.timed) devs.append(this._evRow(x, d, now, loc, claimNext));
       if (d.more > 0) devs.append(h('div', { class: 'dmore', text: `+${d.more} more` }));

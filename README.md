@@ -17,7 +17,7 @@ calendars, in one dense card. It replaces a parcel-tracker card and a week-plann
 - **Calendar**: several calendars merged and grouped by day (Today, Tomorrow, then "Sun 15") with a
   date column. All-day events are compact coloured pills (multi-day events show `2/3`); timed events
   are rows with time, a colour bar, summary and location. The running event gets a live progress line
-  and "20 min left", the next one today a countdown. Ended events and empty days are skipped.
+  and "20 min left", the next one today a countdown. Ended events and empty days are skipped, except today, which always shows (*All done for today* / *Nothing on today*).
 - **Counts strip**: optional chips in the header for carrier counts (e.g. Amazon today, mail pieces).
 - **Header summary**: "2 packages today · 1 problem · 4 events today · Next at 4:30 PM".
 - **Sizes to its content.** On cards 640 px wide or more it splits: deliveries (~40 %) | calendar
@@ -52,6 +52,7 @@ For the full look, pair it with the **Glasshouse** theme.
 | `title` | string or `false` | `Coming up` | Header title. `false` hides it (the counts strip stays). |
 | `days` | number | `7` | How many days of calendar, starting today (1–31). |
 | `event_days` | number | – | Show the first N days **that have events** within the `days` look-ahead (e.g. `days: 14, event_days: 5` = the next five days with something on). |
+| `always_today` | boolean | `true` | Today always gets a row when later days have events: *All done for today* once its events have ended, or *Nothing on today*. `false` skips an empty today. |
 | `max_events` | number | `14` | Cap across all days. Capped days show "+N more"; later days a single "+N more events through …" line. |
 | `calendars` | list | – | Calendar entities (below). A plain entity id also works. |
 | `deliveries` | object or string | – | The delivery sensor (below). |

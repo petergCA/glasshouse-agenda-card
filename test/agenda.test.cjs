@@ -352,6 +352,42 @@ async function setup(mockOpts, configPatch, clock) {
     ok(!$('.chip.logo'), 'no logos without carrier_icons');
   }
 
+  console.log('card: today always shown');
+  {
+    // one calendar whose only event today has ended, and something tomorrow
+    const mk = (w) => {
+      const d = (off, hh, mm) => { const x = new w.Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + off); x.setHours(hh, mm); return x; };
+      return d;
+    };
+    const ww = makeWindow();
+    const d = mk(ww);
+    const iso = (x) => x.toISOString();
+    const evs = [
+      { summary: 'Standup', start: { dateTime: iso(d(0, 9, 0)) }, end: { dateTime: iso(d(0, 9, 30)) } },
+      { summary: 'Dentist', start: { dateTime: iso(d(1, 10, 0)) }, end: { dateTime: iso(d(1, 11, 0)) } },
+    ];
+    const run = async (list, clock, patch) => {
+      const card = ww.document.createElement('glasshouse-agenda-card');
+      card._now = () => clock;
+      card.setConfig({ calendars: ['calendar.solo'], ...(patch || {}) });
+      ww.document.body.append(card);
+      card.hass = { states: { 'calendar.solo': { entity_id: 'calendar.solo', state: 'off', attributes: { friendly_name: 'Solo' } } },
+        locale: { language: 'en', time_format: '12' }, language: 'en',
+        callApi: async () => list, callWS: async () => ({}), connection: { subscribeEvents: async () => () => {} } };
+      await sleep(40);
+      return (q) => [...card.shadowRoot.querySelectorAll(q)];
+    };
+    let $$ = await run(evs, d(0, 15, 0).getTime());
+    eq($$('.day')[0].classList.contains('today'), true, 'first row is today');
+    eq($$('.day.today .dnone')[0] && $$('.day.today .dnone')[0].textContent, 'All done for today', 'ended events: all done');
+    $$ = await run(evs.slice(1), d(0, 8, 0).getTime());
+    eq($$('.day.today .dnone')[0] && $$('.day.today .dnone')[0].textContent, 'Nothing on today', 'no events today: nothing on');
+    $$ = await run(evs, d(0, 8, 0).getTime());
+    ok(!$$('.dnone').length && $$('.day.today .ev').length === 1, 'today with an event: normal row');
+    $$ = await run(evs, d(0, 15, 0).getTime(), { always_today: false });
+    ok(!$$('.day.today').length, 'always_today: false keeps the old behaviour');
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
