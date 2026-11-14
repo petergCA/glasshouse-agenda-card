@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.2.1';
   const TAG = 'glasshouse-agenda-card';
 
   const REFRESH_MS = 15 * 60000;
@@ -205,8 +205,10 @@
     .pk .chip { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center;
       color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 30%, transparent); }
-    .pk .chip.logo { background: #fff; overflow: hidden; padding: 0; }
-    .pk .chip.logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    /* carrier logos are circular: round chips (all of them, so fallbacks match), no fill behind the image */
+    .plist.logos .pk .chip { border-radius: 50%; }
+    .pk .chip.logo { background: none; overflow: hidden; padding: 0; }
+    .pk .chip.logo img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
     .pk.t-out .chip { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gh-ok) 50%, transparent), 0 0 18px -6px var(--gh-ok); }
     .pk .chip.logo { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 45%, transparent); }
     .pk.t-alert .chip { animation: gh-pulse 2.4s ease-in-out infinite; }
@@ -932,7 +934,7 @@
       E.head = h('div', { class: 'head' }, [h('div', { class: 'titles' }, [E.title, E.sum]), E.counts]);
 
       E.delivCount = h('span', { class: 'count' });
-      E.plist = h('div', { class: 'plist' });
+      E.plist = h('div', { class: c.deliveries && c.deliveries.logos ? 'plist logos' : 'plist' });
       const dz = h('div', { class: 'zone-h' }, [h('span', { class: 'label', text: c.deliveries ? c.deliveries.name : 'Deliveries' }), E.delivCount, h('span', { class: 'rule' })]);
       E.vsw = null;
       if (c.deliveries && c.deliveries.view) {
