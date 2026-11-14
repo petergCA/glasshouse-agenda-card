@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
   const TAG = 'glasshouse-agenda-card';
 
   const REFRESH_MS = 15 * 60000;
@@ -161,6 +161,16 @@
       font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
       color: var(--c, var(--gh-text-2)); background: color-mix(in srgb, var(--c, var(--gh-text-2)) 16%, transparent); }
     .zone-h .rule { flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, var(--gh-border), transparent); }
+    /* Today / All switch at the right of the deliveries header */
+    .vsw { flex: 0 0 auto; display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; background: rgba(255,255,255,0.06);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+    .vsw .vs { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border-radius: 999px; border: 0; cursor: pointer;
+      font: inherit; font-size: 11px; font-weight: 650; letter-spacing: .02em; color: var(--gh-text-2); background: none; }
+    .vsw .vs b { font-weight: 700; color: var(--gh-text-3); font-variant-numeric: tabular-nums; }
+    .vsw .vs[aria-pressed="true"] { color: var(--gh-text); background: color-mix(in srgb, var(--gh-info) 22%, rgba(255,255,255,0.06));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gh-info) 40%, transparent); }
+    .vsw .vs[aria-pressed="true"] b { color: var(--gh-info); }
+    .zone-h:has(.vsw) { height: 26px; }
     .zone-h .aside { font-size: 11px; font-weight: 600; color: var(--gh-text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
     .cal { container: gh-cal / inline-size; min-width: 0; }
     .deliv { min-width: 0; }
@@ -195,7 +205,10 @@
     .pk .chip { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center;
       color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 30%, transparent); }
+    .pk .chip.logo { background: #fff; overflow: hidden; padding: 0; }
+    .pk .chip.logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .pk.t-out .chip { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gh-ok) 50%, transparent), 0 0 18px -6px var(--gh-ok); }
+    .pk .chip.logo { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 45%, transparent); }
     .pk.t-alert .chip { animation: gh-pulse 2.4s ease-in-out infinite; }
     @keyframes gh-pulse { 50% { box-shadow: inset 0 0 0 1px var(--gh-alert), 0 0 22px -4px var(--gh-alert); } }
     .tx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -223,6 +236,8 @@
     .steps i.cur { background: var(--tone); box-shadow: 0 0 6px 0 var(--tone); }
     .pk-more { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 10px;
       color: var(--gh-text-3); font-size: 12px; font-weight: 600; }
+    button.pk-more.link { border: 0; background: none; font-family: inherit; cursor: pointer; width: 100%; text-align: left; }
+    button.pk-more.link:hover { color: var(--gh-info); background: rgba(255,255,255,0.04); }
     .pk-detail { padding: 0 12px 12px 56px; }
     .tl { list-style: none; margin: 0; padding: 0; }
     .tl li { position: relative; padding: 0 0 9px 16px; }
@@ -508,6 +523,11 @@
       deliveries = {
         entity: d.entity, attribute: typeof d.attribute === 'string' && d.attribute ? d.attribute : 'deliveries',
         show_delivered: d.show_delivered === true, max: posInt(d.max, 4, 1, 50), name: d.name ? String(d.name) : 'Deliveries',
+        // default_view: today | all. Set → a Today / All switch appears in the header (all = old behaviour, no switch)
+        view: d.default_view === 'today' || d.default_view === 'all' ? d.default_view : null,
+        // carrier_icons: 'parcelapp' (logos the ParcelApp integration serves) or {carrier_code: image url}
+        logos: d.carrier_icons === 'parcelapp' ? 'parcelapp'
+          : (d.carrier_icons && typeof d.carrier_icons === 'object' && !Array.isArray(d.carrier_icons) ? { ...d.carrier_icons } : null),
       };
     }
     const counts = toList(config.counts).map((c, i) => {
@@ -612,6 +632,24 @@
   }
 
   /* ------------------------------------------------------------- deliveries */
+
+  const PARCELAPP_LOGOS = {
+    ups: 'ups.png', usps: 'usps.jpg', fedex: 'fedex.png', amzlus: 'amazon_orange_v3.png', amazon: 'amazon_orange_v3.png',
+    gofous: 'gofous.png', abf: 'abf.png', speedx: 'speedx_v2.png', uniuni: 'uniuni.png', ontrac: 'ontrac.png', ont: 'ontrac.png',
+    gso: 'gls.png', gls: 'gls.png', yun: 'yunexpress.png', yunexpress: 'yunexpress.png', veho: 'veho.png', cp: 'canadapost.png',
+    aliex: 'aliexpress.png',
+  };
+
+  /** Logo URL for a delivery's carrier, or null (the status icon is used then). */
+  function carrierLogo(code, logos, delivered) {
+    if (!logos) return null;
+    const c = String(code || '').toLowerCase().trim();
+    if (logos === 'parcelapp') {
+      if (delivered) return '/parcelapp/images/delivered.png';
+      return PARCELAPP_LOGOS[c] ? `/parcelapp/images/${PARCELAPP_LOGOS[c]}` : '/parcelapp/images/package.png';
+    }
+    return typeof logos[c] === 'string' ? logos[c] : (typeof logos.default === 'string' ? logos.default : null);
+  }
 
   function carrierLabel(code) {
     const c = String(code || '').trim();
@@ -895,10 +933,19 @@
 
       E.delivCount = h('span', { class: 'count' });
       E.plist = h('div', { class: 'plist' });
-      E.deliv = h('section', { class: 'deliv', 'aria-label': c.deliveries ? c.deliveries.name : 'Deliveries' }, [
-        h('div', { class: 'zone-h' }, [h('span', { class: 'label', text: c.deliveries ? c.deliveries.name : 'Deliveries' }), E.delivCount, h('span', { class: 'rule' })]),
-        E.plist,
-      ]);
+      const dz = h('div', { class: 'zone-h' }, [h('span', { class: 'label', text: c.deliveries ? c.deliveries.name : 'Deliveries' }), E.delivCount, h('span', { class: 'rule' })]);
+      E.vsw = null;
+      if (c.deliveries && c.deliveries.view) {
+        if (!this._dview) this._dview = c.deliveries.view;
+        const mk = (v, t) => {
+          const b = h('button', { class: 'vs', type: 'button', 'data-v': v, 'aria-pressed': 'false' }, [h('span', { text: t }), h('b')]);
+          b.addEventListener('click', (e) => { e.stopPropagation(); if (this._dview === v) return; this._dview = v; this._delivSig = null; this._animDeliv = true; this._renderDeliv(); });
+          return b;
+        };
+        E.vsw = h('div', { class: 'vsw', role: 'group', 'aria-label': 'Show deliveries' }, [mk('today', 'Today'), mk('all', 'All')]);
+        dz.append(E.vsw);
+      }
+      E.deliv = h('section', { class: 'deliv', 'aria-label': c.deliveries ? c.deliveries.name : 'Deliveries' }, [dz, E.plist]);
 
       E.range = h('span', { class: 'aside' });
       E.days = h('div', { class: 'days' });
@@ -1009,18 +1056,38 @@
         today: active.filter((x) => x.s.kind === 'out' || x.s.days === 0).length,
         alert: active.filter((x) => x.s.tone === 'alert').length,
       };
+      const isToday = (x) => x.s.kind === 'out' || x.s.days === 0 || (x.s.kind === 'delivered' && x.s.days === 0);
+      const view = c.deliveries.view ? this._dview : 'all';
+      const todays = items.filter(isToday);
+      const list = view === 'today' ? todays : items;
+      if (E.vsw) {
+        for (const b of E.vsw.children) {
+          const on = b.dataset.v === view;
+          b.setAttribute('aria-pressed', String(on));
+          b.lastChild.textContent = String(b.dataset.v === 'today' ? todays.filter((x) => x.s.kind !== 'delivered').length : active.length);
+        }
+      }
       this._delivN = items.length;
-      this._lastDeliv = items.length;
-      const shown = items.slice(0, c.deliveries.max);
+      this._lastDeliv = list.length;
+      const shown = list.slice(0, c.deliveries.max);
       const loc = this._loc;
       const sig = JSON.stringify([shown.map((x) => [x.key, x.s, x.it.description, x.it.latest_event, x.it.carrier_code,
-        this._expanded.has(x.key) ? x.it.events : 0]), items.length, dayKey(now), loc]);
+        this._expanded.has(x.key) ? x.it.events : 0]), items.length, list.length, view, dayKey(now), loc]);
       E.delivCount.textContent = String(active.length || items.length);
       E.delivCount.style.setProperty('--c', this._delivStats.alert ? 'var(--gh-alert)' : this._delivStats.today ? 'var(--gh-ok)' : 'var(--gh-text-2)');
       if (sig !== this._delivSig) {
         this._delivSig = sig;
         const anim = this._animDeliv && shown.length > 0;
         const rows = shown.map((x, i) => this._pkRow(x, now, anim ? i : -1));
+        if (items.length && !list.length) {
+          // Today view, nothing due today: say so, and offer the rest
+          const more = h('button', { class: 'pk-more link', type: 'button', text: `${active.length} ${plural(active.length, 'package')} on the way · show all` });
+          more.addEventListener('click', (e) => { e.stopPropagation(); this._dview = 'all'; this._delivSig = null; this._renderDeliv(); });
+          rows.push(h('div', { class: 'calm' }, [
+            h('span', { class: 'ci' }, [icon('mdi:package-variant-closed-check')]),
+            h('span', null, [h('b', { text: 'Nothing arriving' }), ' today']),
+          ]), more);
+        }
         if (!items.length) {
           const dead = !st || DEAD.has(String(st.state).toLowerCase());
           rows.push(h('div', { class: `calm${dead && !st ? ' err' : ''}` }, [
@@ -1028,9 +1095,16 @@
             h('span', null, [h('b', { text: !st ? 'Deliveries unavailable' : 'No packages' }), !st ? '' : ' on the way']),
           ]));
         }
-        if (items.length > shown.length) {
-          const n = items.length - shown.length;
-          rows.push(h('div', { class: 'pk-more' }, [`+${n} more ${plural(n, 'package')} on the way`]));
+        if (list.length > shown.length) {
+          const n = list.length - shown.length;
+          rows.push(h('div', { class: 'pk-more' }, [`+${n} more ${plural(n, 'package')}${view === 'today' ? ' today' : ' on the way'}`]));
+        } else if (view === 'today' && list.length && items.length > list.length) {
+          const n = items.filter((x) => !isToday(x) && x.s.kind !== 'delivered').length;
+          if (n) {
+            const more = h('button', { class: 'pk-more link', type: 'button', text: `+${n} more on the way · show all` });
+            more.addEventListener('click', (e) => { e.stopPropagation(); this._dview = 'all'; this._delivSig = null; this._renderDeliv(); });
+            rows.push(more);
+          }
         }
         E.plist.replaceChildren(...rows);
         if (anim) this._animDeliv = false;
@@ -1071,7 +1145,7 @@
         class: 'pk-main', 'aria-expanded': open ? 'true' : 'false',
         'aria-label': `${desc}, ${s.word}${carrier ? `, ${carrier}` : ''}, ${label}. ${STEP_NAMES[s.step]}.`,
       }, [
-        h('span', { class: 'chip' }, [icon(s.icon)]),
+        this._chip(it, s),
         h('span', { class: 'tx' }, [h('span', { class: 't', text: desc }), meta]),
         h('span', { class: 'rt' }, [h('span', { class: 'st' }, [s.tone === 'out' ? h('i') : null, label]), steps]),
       ]);
@@ -1083,6 +1157,15 @@
         this._renderDeliv();
       }, () => this._moreInfo(this._config.deliveries.entity));
       return row;
+    }
+
+    _chip(it, s) {
+      const url = carrierLogo(it.carrier_code, this._config.deliveries.logos, s.kind === 'delivered');
+      if (!url) return h('span', { class: 'chip' }, [icon(s.icon)]);
+      const img = h('img', { src: url, alt: '', loading: 'lazy', decoding: 'async' });
+      // a missing logo falls back to the status icon
+      img.addEventListener('error', () => { const ch = img.parentNode; if (ch) { ch.classList.remove('logo'); ch.replaceChildren(icon(s.icon)); } }, { once: true });
+      return h('span', { class: 'chip logo' }, [img]);
     }
 
     _pkDetail(it, now) {

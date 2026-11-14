@@ -79,7 +79,7 @@ async function setup(mockOpts, configPatch, clock) {
     eq(H.normConfig({ calendars: ['calendar.a'], days: 99, max_events: 0 }).days, 31, 'days clamped');
     eq(H.colorOf('#ff00aa'), '#ff00aa', 'CSS colour passes through');
     ok(!/;/.test(H.colorOf('red; background:url(x)')), 'unsafe colour rejected');
-    eq(H.normConfig({ deliveries: 'sensor.p' }).deliveries, { entity: 'sensor.p', attribute: 'deliveries', show_delivered: false, max: 4, name: 'Deliveries' }, 'deliveries shorthand + defaults');
+    eq(H.normConfig({ deliveries: 'sensor.p' }).deliveries, { entity: 'sensor.p', attribute: 'deliveries', show_delivered: false, max: 4, name: 'Deliveries', view: null, logos: null }, 'deliveries shorthand + defaults');
     throws(() => H.normConfig({}), /at least one/, 'empty config');
     throws(() => H.normConfig({ calendars: ['sensor.x'] }), /calendars item 1/, 'non-calendar entity');
     throws(() => H.normConfig({ calendars: ['calendar.a'], layout: 'grid' }), /layout/, 'bad layout');
@@ -323,6 +323,33 @@ async function setup(mockOpts, configPatch, clock) {
     ok(!$('.pk') && $('.deliv').hidden, 'malformed delivery attribute is tolerated');
     mock.setState('sensor.mail_usps_mail', 'unavailable');
     ok($$q(card, '.cnt.dead').length === 1, 'unavailable count chip dimmed');
+  }
+
+  console.log('card: deliveries view switch + carrier logos');
+  {
+    const base = (await setup()).w.GHAgendaMock.demoConfig().deliveries;
+    const dcfg = { ...(typeof base === 'string' ? { entity: base } : base), default_view: 'today', carrier_icons: 'parcelapp', max: 8 };
+    const { $, $$ } = await setup({}, { deliveries: dcfg });
+    const names = () => $$('.pk .tx .t').map((x) => x.textContent);
+    ok(!!$('.vsw'), 'switch shown when default_view is set');
+    eq($('.vsw .vs[aria-pressed="true"]').dataset.v, 'today', 'defaults to today');
+    eq(names().sort(), ['Running shoes', 'Wireless earbuds and a charging case'], 'today view lists only today');
+    const ups = $$('.pk').find((r) => r.textContent.includes('Running shoes'));
+    eq(ups.querySelector('.chip.logo img').getAttribute('src'), '/parcelapp/images/ups.png', 'UPS logo from ParcelApp');
+    const amz = $$('.pk').find((r) => r.textContent.includes('earbuds'));
+    eq(amz.querySelector('.chip.logo img').getAttribute('src'), '/parcelapp/images/amazon_orange_v3.png', 'Amazon logo');
+    ok(!!$('button.pk-more.link'), 'link to the rest');
+    $('.vsw .vs[data-v="all"]').click();
+    await sleep(20);
+    eq($('.vsw .vs[aria-pressed="true"]').dataset.v, 'all', 'switch to all');
+    ok(names().includes('Vitamins') && names().includes('Phone case'), 'all view lists every package');
+    const dhl = $$('.pk').find((r) => r.textContent.includes('Phone case'));
+    eq(dhl.querySelector('.chip.logo img').getAttribute('src'), '/parcelapp/images/package.png', 'unknown carrier gets the generic box');
+  }
+  {
+    const { $ } = await setup();
+    ok(!$('.vsw'), 'no switch without default_view');
+    ok(!$('.chip.logo'), 'no logos without carrier_icons');
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

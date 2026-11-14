@@ -77,6 +77,8 @@ At least one of `calendars`, `deliveries` or `counts` is required.
 | `attribute` | `deliveries` | Attribute name. A list, an object map or a JSON string are accepted. |
 | `show_delivered` | `false` | Also list delivered parcels (dimmed, last). |
 | `max` | `4` | How many to show; the rest become "+N more packages on the way". |
+| `default_view` | – | `today` or `all`. When set, a **Today / All** switch (with counts) sits at the right of the header; `today` lists only parcels due or out for delivery today, with a link to the rest. Without it, all parcels show and there is no switch. |
+| `carrier_icons` | – | Carrier logos instead of the status icon: `parcelapp` uses the logos the [ParcelApp integration](https://github.com/petergCA/parcelapp) serves at `/parcelapp/images/` (UPS, USPS, FedEx, Amazon, OnTrac, …; unknown carriers get a box, delivered parcels a check). Or a map of `carrier_code: image URL` (with an optional `default`). A logo that fails to load falls back to the status icon. |
 
 Each delivery may have (all optional): `description`, `carrier_code`, `status_code`, `date_expected`
 (`YYYY-MM-DD HH:MM:SS`, local time), `days_to_delivery`, `latest_event`, `delivered`, `tracking_number`,
