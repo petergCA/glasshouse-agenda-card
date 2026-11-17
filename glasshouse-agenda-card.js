@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.1';
+  const VERSION = '1.4.2';
   const TAG = 'glasshouse-agenda-card';
 
   const REFRESH_MS = 15 * 60000;
@@ -214,11 +214,13 @@
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 30%, transparent); }
     /* carrier logos are circular: round chips (all of them, so fallbacks match), no fill behind the image */
     .plist.logos .pk .chip { border-radius: 50%; }
-    .pk .chip.logo { background: none; overflow: hidden; padding: 0; }
-    .pk .chip.logo img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
-    .pk.t-out .chip { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gh-ok) 50%, transparent), 0 0 18px -6px var(--gh-ok); }
+    .pk .chip.logo { overflow: hidden; padding: 0; position: relative; isolation: isolate; background: #fff; }
+    .pk .chip.logo img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
+    .pk.t-out .chip:not(.logo) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gh-ok) 50%, transparent), 0 0 18px -6px var(--gh-ok); }
     .pk .chip.logo { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 45%, transparent); }
-    .pk.t-alert .chip { animation: gh-pulse 2.4s ease-in-out infinite; }
+    /* logos sit on top of the row's tone: only an outer ring + glow around them, nothing painted over the image */
+    .pk.t-out .chip.logo { box-shadow: 0 0 0 2px color-mix(in srgb, var(--gh-ok) 55%, transparent), 0 0 16px -5px var(--gh-ok); }
+    .pk.t-alert .chip:not(.logo) { animation: gh-pulse 2.4s ease-in-out infinite; }
     @keyframes gh-pulse { 50% { box-shadow: inset 0 0 0 1px var(--gh-alert), 0 0 22px -4px var(--gh-alert); } }
     .tx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .tx .t { font-size: 14px; font-weight: 600; letter-spacing: -0.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1106,7 +1108,8 @@
       }
       this._delivN = items.length;
       this._lastDeliv = list.length;
-      const shown = list.slice(0, c.deliveries.max);
+      // with the Today/All switch, show everything in the chosen view; max only caps a card without the switch
+      const shown = c.deliveries.view ? list : list.slice(0, c.deliveries.max);
       const loc = this._loc;
       const sig = JSON.stringify([shown.map((x) => [x.key, x.s, x.it.description, x.it.latest_event, x.it.carrier_code,
         this._expanded.has(x.key) ? x.it.events : 0]), items.length, list.length, view, dayKey(now), loc]);
